@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Health Tracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <main class="page">
+        <section class="hero">
+            <p class="eyebrow">Personal Health Tracker</p>
+            <h1>Log your daily health in one place.</h1>
+            <p class="intro">
+                Save sleep, stress, mood, exercise, food notes, symptoms, and extra notes.
+                Your entries are stored locally in SQLite through the Flask backend.
+            </p>
+        </section>
+
+        <section class="panel">
+            <h2>Add a New Log</h2>
+            <form id="log-form" class="log-form">
+                <label>
+                    Date
+                    <input type="date" name="date" required>
+                </label>
+
+                <label>
+                    Sleep Hours
+                    <input type="number" name="sleep_hours" min="0" max="24" step="0.5">
+                </label>
+
+                <label>
+                    Stress Level (1-10)
+                    <input type="number" name="stress_level" min="1" max="10">
+                </label>
+
+                <label>
+                    Mood
+                    <input type="text" name="mood" placeholder="happy, tired, calm">
+                </label>
+
+                <label>
+                    Exercise Minutes
+                    <input type="number" name="exercise_minutes" min="0">
+                </label>
+
+                <label class="full-width">
+                    Food Notes
+                    <textarea name="food_notes" rows="3" placeholder="Meals, snacks, or anything important"></textarea>
+                </label>
+
+                <label>
+                    Symptom Name
+                    <input type="text" name="symptom_name" placeholder="headache, nausea">
+                </label>
+
+                <label>
+                    Symptom Severity (1-10)
+                    <input type="number" name="symptom_severity" min="1" max="10">
+                </label>
+
+                <label class="full-width">
+                    Notes
+                    <textarea name="notes" rows="4" placeholder="Anything else you want to remember"></textarea>
+                </label>
+
+                <div class="actions full-width">
+                    <button type="submit">Save Log</button>
+                    <p id="form-message" class="message"></p>
+                </div>
+            </form>
+        </section>
+
+        <section class="panel">
+            <div class="section-header">
+                <h2>Saved Logs</h2>
+                <button id="refresh-button" type="button" class="secondary-button">Refresh</button>
+            </div>
+            <div id="logs-list" class="logs-list">
+                <p class="empty-state">No logs yet.</p>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const logForm = document.getElementById("log-form");
+        const formMessage = document.getElementById("form-message");
+        const logsList = document.getElementById("logs-list");
+        const refreshButton = document.getElementById("refresh-button");
+
+        // Start with today's date so the form is quicker to use.
+        logForm.elements.date.value = new Date().toISOString().split("T")[0];
+
+        function cleanValue(value) {
+            return value === "" ? null : value;
+        }
+
+        function createCard(log) {
+            const card = document.createElement("article");
+            card.className = "log-card";
+
+            const details = [
+                ["Date", log.date],
+                ["Sleep Hours", log.sleep_hours],
+                ["Stress Level", log.stress_level],
+                ["Mood", log.mood],
+                ["Exercise Minutes", log.exercise_minutes],
+                ["Food Notes", log.food_notes],
+                ["Symptom Name", log.symptom_name],
+                ["Symptom Severity", log.symptom_severity],
+                ["Notes", log.notes]
+            ]
+                .filter(([, value]) => value !== null && value !== "")
+                .map(([label, value]) => `<li><strong>${label}:</strong> ${value}</li>`)
+                .join("");
+
+            card.innerHTML = `
+                <h3>Log #${log.id}</h3>
+                <ul>${details || "<li>No details saved.</li>"}</ul>
+            `;
+
+            return card;
+        }
+
+        async function loadLogs() {
+            logsList.innerHTML = "<p>Loading logs...</p>";
+
+            try {
+                const response = await fetch("/logs");
+                const logs = await response.json();
+
+                logsList.innerHTML = "";
+
+                if (logs.length === 0) {
+                    logsList.innerHTML = '<p class="empty-state">No logs yet.</p>';
+                    return;
+                }
+
+                logs.forEach((log) => {
+                    logsList.appendChild(createCard(log));
+                });
+            } catch (error) {
+                logsList.innerHTML = '<p class="error-state">Could not load logs.</p>';
+            }
+        }
+
+        logForm.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            formMessage.textContent = "Saving...";
+
+            const formData = new FormData(logForm);
+            const payload = {
+                date: formData.get("date"),
+                sleep_hours: cleanValue(formData.get("sleep_hours")),
+                stress_level: cleanValue(formData.get("stress_level")),
+                mood: cleanValue(formData.get("mood")),
+                exercise_minutes: cleanValue(formData.get("exercise_minutes")),
+                food_notes: cleanValue(formData.get("food_notes")),
+                symptom_name: cleanValue(formData.get("symptom_name")),
+                symptom_severity: cleanValue(formData.get("symptom_severity")),
+                notes: cleanValue(formData.get("notes"))
+            };
+
+            try {
+                const response = await fetch("/log", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    formMessage.textContent = result.error || "Could not save the log.";
+                    return;
+                }
+
+                formMessage.textContent = "Log saved successfully.";
+                logForm.reset();
+                logForm.elements.date.value = new Date().toISOString().split("T")[0];
+                loadLogs();
+            } catch (error) {
+                formMessage.textContent = "Could not connect to the server.";
+            }
+        });
+
+        refreshButton.addEventListener("click", loadLogs);
+
+        loadLogs();
+    </script>
+</body>
+</html>
