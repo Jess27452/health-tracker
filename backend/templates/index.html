@@ -81,6 +81,30 @@
                 <p class="empty-state">No logs yet.</p>
             </div>
         </section>
+
+        <section class="panel">
+            <div class="section-header">
+                <h2>Habit Insights</h2>
+                <button id="insights-button" type="button" class="secondary-button">Update Insights</button>
+            </div>
+            <p id="insights-message" class="insights-message">
+                Add more logs to unlock habit suggestions.
+            </p>
+            <div class="insights-grid">
+                <article class="insight-box">
+                    <h3>Linked Habits and Symptoms</h3>
+                    <ul id="patterns-list" class="insights-list">
+                        <li>No patterns yet.</li>
+                    </ul>
+                </article>
+                <article class="insight-box">
+                    <h3>Daily Habit Suggestions</h3>
+                    <ul id="suggestions-list" class="insights-list">
+                        <li>No suggestions yet.</li>
+                    </ul>
+                </article>
+            </div>
+        </section>
     </main>
 
     <script>
@@ -88,6 +112,10 @@
         const formMessage = document.getElementById("form-message");
         const logsList = document.getElementById("logs-list");
         const refreshButton = document.getElementById("refresh-button");
+        const insightsButton = document.getElementById("insights-button");
+        const insightsMessage = document.getElementById("insights-message");
+        const patternsList = document.getElementById("patterns-list");
+        const suggestionsList = document.getElementById("suggestions-list");
 
         // Start with today's date so the form is quicker to use.
         logForm.elements.date.value = new Date().toISOString().split("T")[0];
@@ -145,6 +173,38 @@
             }
         }
 
+        function renderList(element, items, fallbackText) {
+            element.innerHTML = "";
+
+            if (!items || items.length === 0) {
+                element.innerHTML = `<li>${fallbackText}</li>`;
+                return;
+            }
+
+            items.forEach((item) => {
+                const listItem = document.createElement("li");
+                listItem.textContent = item;
+                element.appendChild(listItem);
+            });
+        }
+
+        async function loadInsights() {
+            insightsMessage.textContent = "Analyzing your logs...";
+
+            try {
+                const response = await fetch("/insights");
+                const insights = await response.json();
+
+                insightsMessage.textContent = insights.message;
+                renderList(patternsList, insights.patterns, "No patterns yet.");
+                renderList(suggestionsList, insights.suggestions, "No suggestions yet.");
+            } catch (error) {
+                insightsMessage.textContent = "Could not load insights right now.";
+                renderList(patternsList, [], "Could not load patterns.");
+                renderList(suggestionsList, [], "Could not load suggestions.");
+            }
+        }
+
         logForm.addEventListener("submit", async (event) => {
             event.preventDefault();
             formMessage.textContent = "Saving...";
@@ -180,14 +240,17 @@
                 logForm.reset();
                 logForm.elements.date.value = new Date().toISOString().split("T")[0];
                 loadLogs();
+                loadInsights();
             } catch (error) {
                 formMessage.textContent = "Could not connect to the server.";
             }
         });
 
         refreshButton.addEventListener("click", loadLogs);
+        insightsButton.addEventListener("click", loadInsights);
 
         loadLogs();
+        loadInsights();
     </script>
 </body>
 </html>
